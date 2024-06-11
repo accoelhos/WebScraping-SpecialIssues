@@ -82,7 +82,6 @@ for url in urls:
                                     submission_display = submission_section
 
                                 print(f"Submission Deadline: {submission_display}")
-                                print(f"Detalhes: {submission_text}")
                             else:
                                 print("Nao ha prazo de submissao claramente definido")
                         else:
