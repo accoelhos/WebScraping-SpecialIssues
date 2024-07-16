@@ -31,6 +31,6 @@ if response.status_code == 200:
 
                 print(f"Title: {titulo}\nLink: {link}\n{deadline}\n\n")
     else:
-        print("No special issues section found")
+        print("Nao ha special issues")
 else:
-    print("Failed to retrieve the page")
+    print("Nao foi possivel abrir a pagina")
