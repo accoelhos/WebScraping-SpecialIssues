@@ -2,7 +2,7 @@
 
 import requests
 from bs4 import BeautifulSoup
-
+import pandas as pd
 url = "https://www.computer.org/publications/author-resources/calls-for-papers"
 
 response = requests.get(url)
@@ -12,6 +12,7 @@ if response.status_code == 200:
     soup = BeautifulSoup(response.text, 'html.parser')
     call_for_papers = soup.find_all('div', class_='callForPaperPostContainer')
     
+    data = []
     # Iterando por cada chamada para artigos encontrada
     for call in call_for_papers:
         # Extraindo o tipo de chamada 
@@ -31,6 +32,13 @@ if response.status_code == 200:
         deadline_elemento = call.find('span', class_='callForPaperPostNominationDeadline')
         deadline = deadline_elemento.get_text(strip=True) if deadline_elemento else 'No deadline'
         
+        data.append([tipo,titulo,link, resumo, deadline])
         print(f"Tipo: {tipo}\nTítulo: {titulo}\nLink: {link}\nResumo: {resumo}\nDeadline: {deadline}\n\n")
+    df = pd.DataFrame(data, columns=['Tipo', 'Título', 'Link', 'Resumo', 'Deadline'])
+
+    output_file_path= 'WS_IEEE.xlsx'
+    df.to_excel(output_file_path, index= False)
+
+    print("Os resultados foram salvos na planilha: {output_file_path}")
 else:
     print("Não foi possível abrir a página.")
