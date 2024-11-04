@@ -43,7 +43,8 @@ for publication in publications:
     # Extrair o nome da revista
     journal_element = publication.find('p', class_='publication-text')
     journal = journal_element.text.strip().split('•')[0].strip() if journal_element else "Revista não encontrada"
-    
+    resumo = journal_element.text.strip() if journal_element else "Resumo não encontrado"
+
     # Extrair a data de submissão
     deadline_element = publication.find_all('div', class_='text-s')
     submission_deadline = "Data não encontrada"
@@ -72,10 +73,10 @@ for publication in publications:
         link = "https://www.sciencedirect.com" + link_element['href']
     
     # Adicionar os dados à lista
-    data.append([title, journal, submission_deadline, link])
+    data.append([title, journal, submission_deadline, link, resumo])
 
 # Criar um DataFrame e salvar em Excel
-df = pd.DataFrame(data, columns=['Título', 'Revista', 'Submission Deadline', 'Link'])
+df = pd.DataFrame(data, columns=['Título', 'Revista', 'Submission Deadline', 'Link', 'Resumo'])
 output_file_path = 'WS_ELSEVIER.xlsx'
 df.to_excel(output_file_path, index=False)
 
