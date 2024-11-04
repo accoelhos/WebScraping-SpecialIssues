@@ -1,50 +1,124 @@
+from bs4 import BeautifulSoup
 from selenium import webdriver
+from time import sleep
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import pandas as pd
 
-# Inicializa o navegador
-driver = webdriver.Chrome()  # ou webdriver.Firefox() para Firefox
+# Configuração do WebDriver
+options = Options()
+options.add_argument('window-size=1200,800')
+options.add_argument('--ignore-certificate-errors')  # Ignorar erros de SSL
 
-try:
-    # Acessa a página inicial
-    driver.get("https://link.springer.com/search?new-search=true&query=&sortBy=relevance&facet-discipline=%22Computer+Science%22&content-type=journal")
+navegador = webdriver.Chrome(options=options)
+
+# URL base para as páginas
+url_base = "https://link.springer.com/search?new-search=true&query=&sortBy=relevance&facet-discipline=%22Computer+Science%22&content-type=journal&page="
+page_number = 1  # Número inicial da página
+
+# Lista para armazenar os dados dos jornais e updates
+dados_jornais = []
+
+# Loop para percorrer as páginas
+while True:
+    # Acessar a página atual
+    navegador.get(url_base + str(page_number))
+    print(f"Acessando página {page_number}...")
     
-    # Cria uma instância de WebDriverWait
-    wait = WebDriverWait(driver, 10)
+    # Aguarda a página carregar
+    sleep(2)
+    wait = WebDriverWait(navegador, 20)
 
-    while True:
-        # Aguarda até que todos os links de revistas estejam carregados
-        wait.until(
-            EC.presence_of_all_elements_located((By.CLASS_NAME, "app-card-open__link"))
-        )
+    try:
+        # Espera até que os jornais estejam presentes na página
+        wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'app-card-open')))
+        
+        # Extrai o conteúdo da página
+        page_content = navegador.page_source
+        soup = BeautifulSoup(page_content, 'html.parser')
+        
+        # Encontrar todos os jornais na página
+        jornais = soup.find_all('li', class_='app-card-open')
+        
+        # Se não houver jornais na página, fim da navegação
+        if not jornais:
+            print("Nenhum artigo encontrado na página. Fim da navegação.")
+            break
 
-        # Encontra todos os elementos de link que correspondem ao seletor
-        links = driver.find_elements(By.CLASS_NAME, "app-card-open__link")
+        # Iterar por cada jornal encontrado
+        for jornal in jornais:
+            try:
+                # Extrair o nome do jornal
+                nome_jornal_element = jornal.find('h3', class_='app-card-open__heading')
+                nome_jornal = nome_jornal_element.text.strip() if nome_jornal_element else "Nome não encontrado"
+                
+                # Extrair o link do jornal
+                link_jornal_element = nome_jornal_element.find('a')
+                link_jornal = link_jornal_element['href'] if link_jornal_element else "Link não encontrado"
 
-        # Abre um arquivo para gravar os links
-        with open('links.txt', 'w') as file: 
-            for link in links:
-                # Extraia o href e escreva no arquivo
-                file.write(link.get_attribute('href') + '\n')
+                # Completar o link (caso necessário)
+                if not link_jornal.startswith('https'):
+                    link_jornal = "https://link.springer.com" + link_jornal
+                
+                # Acessar o link do jornal
+                navegador.get(link_jornal)
+                sleep(2)
 
-        try:
-            # Espera até que o botão "Next" esteja clicável
-            next_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.eds-c-pagination__link[rel='next']")))
-            
-            # Desloca a janela até o botão "Next"
-            driver.execute_script("arguments[0].scrollIntoView();", next_button)
-            time.sleep(1)  # Espera um pouco para garantir que o botão está visível
+                # Tentar clicar no botão "View all updates"
+                try:
+                    view_updates_button = navegador.find_element(By.XPATH, "//a[@data-test='view-all-updates-button']")
+                    navegador.execute_script("arguments[0].click();", view_updates_button)
+                    sleep(2)
 
-            # Tenta clicar no botão usando JavaScript
-            driver.execute_script("arguments[0].click();", next_button)
-            time.sleep(3)  # Aumenta o tempo de espera para carregar a próxima página
+                    # Extrair o conteúdo da página de updates
+                    page_content = navegador.page_source
+                    soup_updates = BeautifulSoup(page_content, 'html.parser')
 
-        except Exception as e:
-            print("Erro ao tentar clicar no botão de próxima página:", str(e))
-            break  # Sai do loop se não houver mais páginas
+                    # Encontrar todos os updates
+                    updates = soup_updates.find_all('article', class_='app-card-highlight')
 
-finally:
-    # Feche o navegador
-    driver.quit()
+                    # Iterar pelos updates
+                    for update in updates:
+                        link_update_element = update.find('a', class_='app-card-highlight__heading-link')
+                        link_update = "https://link.springer.com" + link_update_element['href'] if link_update_element else "Link não encontrado"
+
+                        titulo_update = link_update_element.text.strip() if link_update_element else "Título não encontrado"
+                        
+                        # Acessar o update para buscar o Special issue type (h1 tag)
+                        navegador.get(link_update)
+                        sleep(2)
+
+                        page_content_update = navegador.page_source
+                        soup_detail = BeautifulSoup(page_content_update, 'html.parser')
+                        special_issue_type_element = soup_detail.find('h1', class_='u-h2 u-mb-48')
+                        special_issue_type = special_issue_type_element.text.strip() if special_issue_type_element else "Special issue type não encontrado"
+
+                        # Adicionar os dados à lista
+                        dados_jornais.append([nome_jornal, link_jornal, titulo_update, link_update, special_issue_type])
+                
+                except NoSuchElementException:
+                    print(f"O jornal '{nome_jornal}' não possui um botão 'View all updates'. Seguindo para o próximo.")
+
+            except Exception as e:
+                print(f"Erro ao processar o jornal: {nome_jornal} - Erro: {str(e)}")
+
+        # Incrementar o número da página para acessar a próxima página
+        page_number += 1
+    
+    except TimeoutException:
+        print("Tempo esgotado para carregar a página, encerrando o loop...")
+        break
+
+# Fechar o navegador
+navegador.quit()
+
+# Converter os dados para um DataFrame do Pandas
+df = pd.DataFrame(dados_jornais, columns=['Nome do Jornal', 'Link do Jornal', 'Título do Update', 'Link do Update', 'Special Issue Type'])
+
+# Salvar o DataFrame em um arquivo Excel
+df.to_excel('jornais_updates.xlsx', index=False)
+
+print("Dados extraídos e salvos em 'jornais_updates.xlsx'.")
