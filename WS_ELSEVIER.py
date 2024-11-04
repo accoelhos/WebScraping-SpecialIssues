@@ -15,7 +15,7 @@ options.add_argument('window-size=1200x600')
 navegador = webdriver.Chrome(options=options)
 
 # Acesse a página desejada
-url = "https://www.sciencedirect.com/browse/calls-for-papers"
+url = "https://www.sciencedirect.com/browse/calls-for-papers?subject=computer-science"
 navegador.get(url)
 
 # Espera até que o conteúdo seja carregado
@@ -54,7 +54,16 @@ for publication in publications:
             if strong_tag:
                 submission_deadline = strong_tag.text.strip()
                 break
-    
+
+    if submission_deadline == "Data não encontrada":
+        for element in deadline_element:
+            if 'Submission' in element.text:  
+                # Extrair o texto a partir de "Submission"
+                submission_text = element.text
+                submission_start_index = submission_text.find('Submission')
+                if submission_start_index != -1:
+                    submission_deadline = submission_text[submission_start_index:].split(':')[-1].strip()
+                    break 
     # Extrair o link
     link_element = publication.find('a', class_='anchor')
     link = "Link não encontrado"
