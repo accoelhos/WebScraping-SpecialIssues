@@ -5,10 +5,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 import pandas as pd
+import time
 
 # Configurações do WebDriver
 options = Options()
-#options.add_argument('--headless')
+# options.add_argument('--headless')  # Execute sem abrir o navegador
 options.add_argument('window-size=1200x600')
 
 # Inicie o navegador
@@ -43,7 +44,6 @@ for publication in publications:
     # Extrair o nome da revista
     journal_element = publication.find('p', class_='publication-text')
     journal = journal_element.text.strip().split('•')[0].strip() if journal_element else "Revista não encontrada"
-    resumo = journal_element.text.strip() if journal_element else "Resumo não encontrado"
 
     # Extrair a data de submissão
     deadline_element = publication.find_all('div', class_='text-s')
@@ -59,18 +59,43 @@ for publication in publications:
     if submission_deadline == "Data não encontrada":
         for element in deadline_element:
             if 'Submission' in element.text:  
-                # Extrair o texto a partir de "Submission"
                 submission_text = element.text
                 submission_start_index = submission_text.find('Submission')
                 if submission_start_index != -1:
                     submission_deadline = submission_text[submission_start_index:].split(':')[-1].strip()
                     break 
+
     # Extrair o link
     link_element = publication.find('a', class_='anchor')
     link = "Link não encontrado"
     
     if link_element and 'href' in link_element.attrs:
         link = "https://www.sciencedirect.com" + link_element['href']
+    
+    # Acessar o link para extrair o conteúdo do primeiro <p> com estilo
+    resumo = "Resumo não encontrado"
+    if link != "Link não encontrado":
+        try:
+            navegador.get(link)
+            time.sleep(2)  # Pausa para o conteúdo carregar
+
+            # Obter o conteúdo da página do link
+            page_content = navegador.page_source
+            soup_link = BeautifulSoup(page_content, 'html.parser')
+            
+            # Procurar o primeiro <p> que contenha o atributo style
+            first_p_with_style = soup_link.find('p', style=False)
+            
+            # Extrair o texto até o primeiro ponto final
+            if first_p_with_style:
+                full_text = first_p_with_style.text.strip()
+                resumo = full_text.split('.')[0] + "." if '.' in full_text else full_text
+            else:
+                resumo = "Resumo não disponível"
+        
+        except Exception as e:
+            print(f"Erro ao acessar o link {link}: {e}")
+            resumo = "Erro ao acessar o link"
     
     # Adicionar os dados à lista
     data.append([title, journal, submission_deadline, link, resumo])
