@@ -1,13 +1,12 @@
-import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from time import sleep
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import pandas as pd
-import time
 
 # Configuração do WebDriver
 options = Options()
@@ -16,11 +15,11 @@ options.add_argument('--ignore-certificate-errors')  # Ignorar erros de SSL
 
 navegador = webdriver.Chrome(options=options)
 
-# URL base para as páginas de jornais de Ciência da Computação
+# URL base para as páginas
 url_base = "https://link.springer.com/search?new-search=true&query=&sortBy=relevance&facet-discipline=%22Computer+Science%22&content-type=journal&page="
 page_number = 1  
 
-# Lista para armazenar os dados dos jornais
+# Lista para armazenar os dados dos jornais e updates
 dados_jornais = []
 
 # Loop para percorrer as páginas
@@ -28,9 +27,9 @@ while True:
     # Acessar a página atual
     navegador.get(url_base + str(page_number))
     print(f"Acessando página {page_number}...")
-
+    
     # Aguarda a página carregar
-    time.sleep(2)
+    sleep(2)
     wait = WebDriverWait(navegador, 20)
 
     try:
@@ -59,64 +58,96 @@ while True:
                 link_jornal_element = nome_jornal_element.find('a')
                 link_jornal = link_jornal_element['href'] if link_jornal_element else "Link não encontrado"
 
-                # Completar o link (caso necessário)
+                # Completar o link 
                 if not link_jornal.startswith('https'):
                     link_jornal = "https://link.springer.com" + link_jornal
                 
-                # Acessar a página do jornal para extrair os updates
+                # Acessar o link do jornal
                 navegador.get(link_jornal)
-                time.sleep(2)
+                sleep(2)
 
-                # Extrair o conteúdo da página do jornal
-                page_content_journal = navegador.page_source
-                soup_journal = BeautifulSoup(page_content_journal, 'html.parser')
-                
-                # Extração de updates
-                updates_section = soup_journal.find('ul', {'data-test': 'updates'})
-                updates_data = []
-                
-                if updates_section:
-                    # Encontrar todos os itens de atualização
-                    updates = updates_section.find_all('li', class_='c-list-bullets')
+                # Tentar clicar no botão "View all updates"
+                try:
+                    view_updates_button = navegador.find_element(By.XPATH, "//a[@data-test='view-all-updates-button']")
+                    navegador.execute_script("arguments[0].click();", view_updates_button)
+                    sleep(2)
+
+                    # Extrair o conteúdo da página de updates
+                    page_content = navegador.page_source
+                    soup_updates = BeautifulSoup(page_content, 'html.parser')
+
+                    # Encontrar todos os updates
+                    updates = soup_updates.find_all('article', class_='app-card-highlight')
+
+                    # Definir palavras-chave para filtro
                     keywords = ["call for papers", "special issue", "cfp"]
 
+                    # Iterar pelos updates
                     for update in updates:
-                        title_element = update.find('a', class_='app-card-highlight__heading-link')
-                        if title_element:
-                            title = title_element.text.strip().lower()
-                            if any(keyword in title for keyword in keywords):
-                                # Extrair o título e o link da atualização
-                                update_link = "https://link.springer.com" + title_element['href']
-                                submission_deadline_tag = update.find('div', class_='app-card-highlight__text')
-                                
-                                # Verificar o prazo de submissão
+                        link_update_element = update.find('a', class_='app-card-highlight__heading-link')
+                        titulo_update = link_update_element.text.strip() if link_update_element else "Título não encontrado"
+                        
+                        # Filtrar updates por palavras-chave e ignorar título "Special Issues" isolado
+                        if any(keyword in titulo_update.lower() for keyword in keywords) and titulo_update.lower() != "special issues":
+                            link_update = "https://link.springer.com" + link_update_element['href'] if link_update_element else "Link não encontrado"
+
+                            # Verificar o prazo de submissão com termos adicionais
+                            submission_deadline_tag = update.find('div', class_='app-card-highlight__text')
+                            prazo_submissao = "Prazo não claramente definido"  # Valor padrão
+
+                            if submission_deadline_tag:
+                                submission_text = submission_deadline_tag.text.strip()
+                                if any(term in submission_text.lower() for term in ['submission deadline:', 'submissions due:']):
+                                    deadline_index = min(
+                                        submission_text.lower().find(term)
+                                        for term in ['submission deadline:', 'submissions due:']
+                                        if submission_text.lower().find(term) != -1
+                                    )
+                                    submission_section = submission_text[deadline_index:].split(':', 1)[1].strip()
+
+                                    if 'Guest Editors:' in submission_section:
+                                        prazo_submissao = submission_section.split('Guest Editors:')[0].strip()
+                                    else:
+                                        prazo_submissao = submission_section
+                                else:
+                                    prazo_submissao = "Prazo não encontrado na descrição inicial"
+
+                            # Se o prazo ainda não foi encontrado, acessar o link do update e procurar novamente
+                            if prazo_submissao == "Prazo não claramente definido":
+                                navegador.get(link_update)
+                                sleep(2)
+                                update_page_content = navegador.page_source
+                                soup_update_page = BeautifulSoup(update_page_content, 'html.parser')
+
+                                # Procurar pelo prazo na página do update
+                                submission_deadline_tag = soup_update_page.find('div', class_='app-page-content')
                                 if submission_deadline_tag:
                                     submission_text = submission_deadline_tag.text.strip()
-                                    if 'Submission Deadline:' in submission_text or 'Submission deadline:' in submission_text:
-                                        deadline_index = submission_text.lower().find('submission deadline:')
+                                    # Procurar por 'Submission system closes:', além dos termos anteriores
+                                    if any(term in submission_text.lower() for term in ['submission deadline:', 'submissions due:', 'submission system closes:']):
+                                        deadline_index = min(
+                                            submission_text.lower().find(term)
+                                            for term in ['submission deadline:', 'submissions due:', 'submission system closes:']
+                                            if submission_text.lower().find(term) != -1
+                                        )
                                         submission_section = submission_text[deadline_index:].split(':', 1)[1].strip()
 
-                                        # Remover "Guest Editors" se presente
                                         if 'Guest Editors:' in submission_section:
-                                            submission_display = submission_section.split('Guest Editors:')[0].strip()
+                                            prazo_submissao = submission_section.split('Guest Editors:')[0].strip()
                                         else:
-                                            submission_display = submission_section
+                                            prazo_submissao = submission_section
                                     else:
-                                        submission_display = "Nao ha prazo de submissao claramente definido"
-                                else:
-                                    submission_display = "Nao ha prazo de submissao"
+                                        prazo_submissao = "Prazo não encontrado no link do update"
 
-                                updates_data.append({
-                                    "Titulo": title_element.text.strip(),
-                                    "Link": update_link,
-                                    "Prazo de Submissao": submission_display
-                                })
+                            # Extrair o primeiro parágrafo como resumo
+                            resumo_element = update.find('p')
+                            resumo = resumo_element.text.strip() if resumo_element else "Resumo não disponível"
 
-                dados_jornais.append({
-                    "Nome do Jornal": nome_jornal,
-                    "Link do Jornal": link_jornal,
-                    "Updates": updates_data
-                })
+                            # Adicionar os dados à lista
+                            dados_jornais.append([nome_jornal, link_jornal, titulo_update, link_update, prazo_submissao, resumo])
+                
+                except NoSuchElementException:
+                    print(f"O jornal '{nome_jornal}' não possui um botão 'View all updates'. Seguindo para o próximo.")
 
             except Exception as e:
                 print(f"Erro ao processar o jornal: {nome_jornal} - Erro: {str(e)}")
@@ -132,18 +163,7 @@ while True:
 navegador.quit()
 
 # Converter os dados para um DataFrame do Pandas
-data = []
-for jornal in dados_jornais:
-    for update in jornal["Updates"]:
-        data.append({
-            "Nome do Jornal": jornal["Nome do Jornal"],
-            "Link do Jornal": jornal["Link do Jornal"],
-            "Titulo do Update": update["Titulo"],
-            "Link do Update": update["Link"],
-            "Prazo de Submissao": update["Prazo de Submissao"]
-        })
-
-df = pd.DataFrame(data, columns=['Nome do Jornal', 'Link do Jornal', 'Titulo do Update', 'Link do Update', 'Prazo de Submissao'])
+df = pd.DataFrame(dados_jornais, columns=['Nome do Jornal', 'Link do Jornal', 'Título do Update', 'Link do Update', 'Prazo de Submissão', 'Resumo'])
 
 # Salvar o DataFrame em um arquivo Excel
 df.to_excel('WS_Springer.xlsx', index=False)
