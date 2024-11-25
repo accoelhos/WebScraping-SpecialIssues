@@ -142,13 +142,36 @@ while True:
                                 soup_update_page = BeautifulSoup(update_page_content, 'html.parser')
 
                                 resumo_tag = soup_update_page.find('div', class_='c-list-bullets app-content-page app-coremedia-content-page')
+                                resumo="Resumo não disponível"
                                 if resumo_tag:
                                     paragraphs = resumo_tag.find_all('p')
-                                    resumo = " ".join([p.text.strip() for p in paragraphs])
-                                    resumo = resumo[:RESUMO_CHAR_LIMIT] + "..." if len(resumo) > RESUMO_CHAR_LIMIT else resumo
+                                    total_chars= 0
+                                    filtro = ["Guest editors","Submission Deadline","Section Editor"]
+                                    paragraphs_filtrados= []
+                                    i=0
+                                    while i<len(paragraphs):
+                                        paragraph_text = paragraphs[i].text.strip()
+                                        # Verifica se o parágrafo começa com uma frase indesejada
+                                        if any(paragraph_text.lower().startswith(undesired.lower()) for undesired in filtro):
+                                            i += 1  # Pula para o próximo parágrafo
+                                            if i < len(paragraphs):  # Verifica se há mais parágrafos
+                                                paragraph_text = paragraphs[i].text.strip()
+                                        # Adiciona o parágrafo válido ao resumo
+                                        if total_chars + len(paragraph_text) <= RESUMO_CHAR_LIMIT:
+                                            paragraphs_filtrados.append(paragraph_text)
+                                            total_chars += len(paragraph_text)
+                                        else:
+                                            break
+
+                                        i += 1   
+                                    if paragraphs_filtrados:         
+                                        resumo = " ".join(paragraphs_filtrados)
+                                        if total_chars> RESUMO_CHAR_LIMIT:
+                                            resumo = resumo[:RESUMO_CHAR_LIMIT]+"..."
+                                    
 
                             except Exception as e:
-                                print(f"Erro ao processar resumo ou prazo para update {titulo_update}: {str(e)}")
+                                print(f"Erro ao processar resumo para update {titulo_update}: {str(e)}")
 
                             # Adicionar o registro após todos os campos serem processados
                             dados_jornais.append([nome_jornal, link_jornal, titulo_update, link_update, prazo_submissao, resumo])
