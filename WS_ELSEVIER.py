@@ -15,7 +15,7 @@ options.add_argument('window-size=1200x600')
 # Inicie o navegador
 navegador = webdriver.Chrome(options=options)
 
-# Acesse a página desejada
+# Acesse a página inicial
 url = "https://www.sciencedirect.com/browse/calls-for-papers?subject=computer-science"
 navegador.get(url)
 
@@ -72,7 +72,7 @@ for publication in publications:
     if link_element and 'href' in link_element.attrs:
         link = "https://www.sciencedirect.com" + link_element['href']
     
-    # Acessar o link para extrair o conteúdo do primeiro <p> com estilo
+        # Acessar o link para extrair o resumo
     resumo = "Resumo não encontrado"
     if link != "Link não encontrado":
         try:
@@ -83,16 +83,33 @@ for publication in publications:
             page_content = navegador.page_source
             soup_link = BeautifulSoup(page_content, 'html.parser')
             
-            # Procurar o primeiro <p> que contenha o atributo style
-            first_p_with_style = soup_link.find('p', style=False)
+            # Tentar extrair o resumo do contêiner padrão
+            item_div = soup_link.find('div', class_='cfp-item')
+            if item_div:
+                resumo_text = []
+                total_chars = 0
+                max_chars = 500  # Limite de caracteres para o resumo
+
+                for paragraph in item_div.find_all('p', recursive=True):
+                    paragraph_text = paragraph.get_text(strip=True)
+                    
+                    # Excluir parágrafos indesejados
+                    if not any(undesired in paragraph_text for undesired in ["Guest editors:", "Manuscript submission information", "Contact","Guest Editors:","Guest Editor:","GUEST EDITOR"]):
+                        # Checa se o próximo parágrafo ultrapassará o limite de caracteres
+                        if total_chars + len(paragraph_text) > max_chars:
+                            break
+                        
+                        resumo_text.append(paragraph_text)
+                        total_chars += len(paragraph_text)
+                
+                resumo = " ".join(resumo_text) if resumo_text else "Resumo não disponível"
             
-            # Extrair o texto até o primeiro ponto final
-            if first_p_with_style:
-                full_text = first_p_with_style.text.strip()
-                resumo = full_text.split('.')[0] + "." if '.' in full_text else full_text
-            else:
-                resumo = "Resumo não disponível"
-        
+            # Caso o contêiner padrão não contenha um resumo, buscar uma alternativa
+            if resumo == "Resumo não disponível":
+                alternative_paragraph = soup_link.find('p')  # Buscar o primeiro parágrafo da página como alternativa
+                if alternative_paragraph:
+                    resumo = alternative_paragraph.get_text(strip=True)[:500]  # Limitar a 500 caracteres
+                
         except Exception as e:
             print(f"Erro ao acessar o link {link}: {e}")
             resumo = "Erro ao acessar o link"

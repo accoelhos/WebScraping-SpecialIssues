@@ -146,7 +146,7 @@ while True:
                                 if resumo_tag:
                                     paragraphs = resumo_tag.find_all('p')
                                     total_chars= 0
-                                    filtro = ["Guest editors","Submission Deadline","Section Editor"]
+                                    filtro = ["Guest editors","Submission Deadline","Section Editor","GUEST EDITOR", "Guest Editor:","Guest Editors:"]
                                     paragraphs_filtrados= []
                                     i=0
                                     while i<len(paragraphs):
