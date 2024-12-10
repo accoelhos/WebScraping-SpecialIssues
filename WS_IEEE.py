@@ -39,6 +39,6 @@ if response.status_code == 200:
     output_file_path= 'WS_IEEE.xlsx'
     df.to_excel(output_file_path, index= False)
 
-    print("Os resultados foram salvos na planilha: {output_file_path}")
+    print(f"Os resultados foram salvos na planilha: {output_file_path}")
 else:
     print("Não foi possível abrir a página.")

@@ -9,7 +9,7 @@ import time
 
 # Configurações do WebDriver
 options = Options()
-# options.add_argument('--headless')  # Execute sem abrir o navegador
+options.add_argument('--headless')  
 options.add_argument('window-size=1200x600')
 
 # Inicie o navegador
@@ -30,7 +30,6 @@ page_content = navegador.page_source
 # Analisar o HTML com BeautifulSoup
 soup = BeautifulSoup(page_content, 'html.parser')
 
-# Lista para armazenar os dados
 data = []
 
 # Encontrar todas as seções de publicações
@@ -72,18 +71,18 @@ for publication in publications:
     if link_element and 'href' in link_element.attrs:
         link = "https://www.sciencedirect.com" + link_element['href']
     
-        # Acessar o link para extrair o resumo
+     # Acessar o link para extrair o resumo
     resumo = "Resumo não encontrado"
     if link != "Link não encontrado":
         try:
             navegador.get(link)
-            time.sleep(2)  # Pausa para o conteúdo carregar
+            time.sleep(2) 
 
             # Obter o conteúdo da página do link
             page_content = navegador.page_source
             soup_link = BeautifulSoup(page_content, 'html.parser')
             
-            # Tentar extrair o resumo do contêiner padrão
+            # Tentativa de extrair o resumo do contêiner padrão
             item_div = soup_link.find('div', class_='cfp-item')
             if item_div:
                 resumo_text = []
@@ -108,8 +107,16 @@ for publication in publications:
             if resumo == "Resumo não disponível":
                 alternative_paragraph = soup_link.find('p')  # Buscar o primeiro parágrafo da página como alternativa
                 if alternative_paragraph:
-                    resumo = alternative_paragraph.get_text(strip=True)[:500]  # Limitar a 500 caracteres
-                
+                    resumo = alternative_paragraph.get_text(strip=True)[:500]  
+
+            if resumo == "Resumo não disponível":
+                # Tenta buscar o resumo a partir de um outro <div> específico ou qualquer outro conteúdo de destaque
+                content_div = soup_link.find('div', id='updates-content-body')  
+                if content_div:
+                    paragraph = content_div.find('p')  # Seleciona o primeiro parágrafo dentro do div
+                    if paragraph:
+                        resumo = paragraph.text.strip()[:500]  
+
         except Exception as e:
             print(f"Erro ao acessar o link {link}: {e}")
             resumo = "Erro ao acessar o link"
@@ -119,7 +126,7 @@ for publication in publications:
 
 # Criar um DataFrame e salvar em Excel
 df = pd.DataFrame(data, columns=['Título', 'Revista', 'Submission Deadline', 'Link', 'Resumo'])
-output_file_path = 'WS_ELSEVIER.xlsx'
+output_file_path = 'WS_ELSEVIER2.xlsx'
 df.to_excel(output_file_path, index=False)
 
 print(f"Os resultados foram salvos na planilha: {output_file_path}")
