@@ -126,7 +126,7 @@ for publication in publications:
 
 # Criar um DataFrame e salvar em Excel
 df = pd.DataFrame(data, columns=['Título', 'Revista', 'Submission Deadline', 'Link', 'Resumo'])
-output_file_path = 'WS_ELSEVIER2.xlsx'
+output_file_path = 'WS_ELSEVIER.xlsx'
 df.to_excel(output_file_path, index=False)
 
 print(f"Os resultados foram salvos na planilha: {output_file_path}")

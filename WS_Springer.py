@@ -12,14 +12,14 @@ import pandas as pd
 options = Options()
 options.add_argument('window-size=1200,800')
 options.add_argument('--ignore-certificate-errors')
-options.add_argument('--headless')  
+#options.add_argument('--headless')  
 
 navegador = webdriver.Chrome(options=options)
 
 # URL base para as páginas
-url_base = "https://link.springer.com/search?new-search=true&query=&sortBy=relevance&facet-discipline=%22Computer+Science%22&content-type=journal&page="
+url_base = "https://link.springer.com/search?new-search=true&query=&content-type=journal&dateFrom=&dateTo=&taxonomy=%22Machine+Learning%22&taxonomy=%22Artificial+Intelligence%22&taxonomy=%22Statistics%22&taxonomy=%22Computational+Intelligence%22&facet-discipline=%22Engineering%22&facet-discipline=%22Mathematics%22&facet-discipline=%22Biomedicine%22&facet-discipline=%22Computer+Science%22&facet-discipline=%22Education%22&sortBy=relevance&page="
 page_number = 1
-
+#filtros ML,estatística, AI, inteligencia computacional
 # Lista e conjunto para armazenar dados dos jornais e evitar duplicatas
 dados_jornais = []
 links_processados = set()
